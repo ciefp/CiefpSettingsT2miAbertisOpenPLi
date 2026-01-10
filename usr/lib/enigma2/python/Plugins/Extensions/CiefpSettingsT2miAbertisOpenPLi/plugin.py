@@ -11,7 +11,7 @@ from Components.Pixmap import Pixmap
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "1.2"
+PLUGIN_VERSION = "1.3"
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
