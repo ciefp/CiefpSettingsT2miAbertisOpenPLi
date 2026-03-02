@@ -13,15 +13,16 @@ from Components.Label import Label
 from Components.Button import Button
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "1.4"
+PLUGIN_VERSION = "1.5"  # Verzija povećana zbog promjene izvora
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
 SCRIPTS_PATH = os.path.join(DATA_PATH, "scripts")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icon.png")
 
-# GitHub folder where the ZIP is stored (only one version will exist here at any time)
-GITHUB_SETTINGS_FOLDER_API = "https://api.github.com/repos/ciefp/ciefpsettings-enigma2-Abertis-t2mi/contents/settings%20openpli"
+# NOVA GitHub API adresa za settings
+GITHUB_SETTINGS_FOLDER_API = "https://api.github.com/repos/ciefp/ciefpsettings-enigma2-zipped/contents/"
+# Prefiks za filtriranje - samo 75E-34W settings
 ZIP_PREFIX = "ciefp-E2-75E-34W-"
 ZIP_SUFFIX = ".zip"
 
@@ -249,13 +250,14 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
     # OPENPLI SETTINGS (blue)
     # --------------------------
     def getLatestSettingsZipUrl(self):
-        """Find the only ZIP in the GitHub folder (prefix-based)."""
+        """Find the ZIP in the GitHub folder with prefix ciefp-E2-75E-34W-."""
         try:
             resp = urlopen(GITHUB_SETTINGS_FOLDER_API, timeout=20)
             data = json.loads(resp.read().decode("utf-8"))
 
             for item in data:
                 name = item.get("name", "")
+                # Filtriraj samo fajlove koji počinju sa ZIP_PREFIX i završavaju sa .zip
                 if name.startswith(ZIP_PREFIX) and name.endswith(ZIP_SUFFIX):
                     return item.get("download_url")
             return None
