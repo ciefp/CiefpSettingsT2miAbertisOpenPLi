@@ -4,7 +4,7 @@ import shutil
 import json
 from urllib.request import urlopen
 
-from enigma import eConsoleAppContainer, eDVBDB
+from enigma import eConsoleAppContainer, eDVBDB, eTimer
 
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
@@ -13,7 +13,7 @@ from Components.Label import Label
 from Components.Button import Button
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "1.5"  # Verzija povećana zbog promjene izvora
+PLUGIN_VERSION = "1.6"  # Verzija povećana zbog dodavanja retry logike
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
@@ -25,6 +25,10 @@ GITHUB_SETTINGS_FOLDER_API = "https://api.github.com/repos/ciefp/ciefpsettings-e
 # Prefiks za filtriranje - samo 75E-34W settings
 ZIP_PREFIX = "ciefp-E2-75E-34W-"
 ZIP_SUFFIX = ".zip"
+
+# Timeout i retry postavke
+INSTALL_TIMEOUT = 30000  # 30 sekundi u milisekundama
+MAX_RETRY_ATTEMPTS = 2   # Maksimalan broj pokušaja (1 originalni + 1 retry)
 
 
 class CiefpSettingsT2miAbertisOpenPLi(Screen):
@@ -49,6 +53,14 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
 
         self._container = None
         self._on_cmd_done = None
+        
+        # Timer za monitoring instalacije
+        self._install_timer = eTimer()
+        self._install_timer.callback.append(self._onInstallTimeout)
+        self._install_start_time = None
+        self._current_install_step = None
+        self._retry_count = 0
+        self._is_installing = False
 
         self.setupUI()
         self.showPrompt()
@@ -111,6 +123,9 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
             self["status"].setText("Command start failed: %s" % str(e))
 
     def _commandFinished(self, retval):
+        # Zaustavi timer kada se komanda završi
+        self._stopInstallTimer()
+        
         cb = self._on_cmd_done
         self._container = None
         self._on_cmd_done = None
@@ -119,6 +134,43 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
                 cb(retval)
             except Exception as e:
                 self["status"].setText("Callback error: %s" % str(e))
+
+    # -------------------------
+    # Install monitoring (timer)
+    # -------------------------
+    def _startInstallTimer(self, step_name):
+        """Pokreni timer za monitoring instalacije."""
+        self._install_start_time = step_name
+        self._install_timer.start(INSTALL_TIMEOUT, True)  # True = single shot
+
+    def _stopInstallTimer(self):
+        """Zaustavi timer."""
+        self._install_timer.stop()
+
+    def _onInstallTimeout(self):
+        """Poziva se kada timer istekne (instalacija zaglavi)."""
+        if not self._is_installing:
+            return
+            
+        self._retry_count += 1
+        
+        if self._retry_count >= MAX_RETRY_ATTEMPTS:
+            self["status"].setText("Installation failed after %d attempts." % MAX_RETRY_ATTEMPTS)
+            self["info"].setText(
+                "Installation failed!\n\n"
+                "Step that failed: %s\n\n"
+                "Please check your internet connection and try again later." % str(self._current_install_step)
+            )
+            self._is_installing = False
+            self._retry_count = 0
+            return
+        
+        # Pokušaj ponovno
+        self["status"].setText("Timeout! Retrying installation (attempt %d/%d)..." % (self._retry_count + 1, MAX_RETRY_ATTEMPTS))
+        
+        # Ponovno pokreni instalaciju od početka
+        self._is_installing = False
+        self.startInstallation()
 
     # -------------------------
     # Safe copy for executables
@@ -147,21 +199,33 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
     # INSTALL (green)
     # -----------------
     def startInstallation(self):
+        # Resetiraj stanje instalacije
+        self._is_installing = True
+        self._current_install_step = "Checking system compatibility"
+        self._retry_count = 0
+        
         self["info"].setText("Checking system compatibility...")
         system_info = platform.machine()
         is_py3 = (platform.python_version_tuple()[0] == '3')
 
         if not is_py3:
+            self._is_installing = False
             self["status"].setText("Python3 is required for this plugin.")
             return
 
         if system_info in ["arm", "armv7", "armv7l"]:
             system_info = "arm"
         elif system_info not in ["mips"]:
+            self._is_installing = False
             self["status"].setText("Unsupported architecture: " + system_info)
             return
 
+        self._current_install_step = "Installing Astra-SM"
         self["info"].setText("Installing Astra-SM (opkg)...")
+        
+        # Pokreni timer za monitoring
+        self._startInstallTimer("astra_install")
+        
         self.runCommandAsync(
             "opkg update && opkg install astra-sm",
             done_cb=self._astraInstallDone,
@@ -170,11 +234,17 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
 
     def _astraInstallDone(self, retval):
         if retval != 0:
+            self._is_installing = False
             self["status"].setText("Astra-SM install failed (code %d)." % retval)
             return
 
         # Astra-SM is often running all the time -> stop it before copying scripts/configs
+        self._current_install_step = "Stopping Astra-SM"
         self["info"].setText("Stopping Astra-SM to copy files safely...")
+        
+        # Pokreni timer za monitoring
+        self._startInstallTimer("astra_stop")
+        
         stop_cmd = (
             "if [ -x /etc/init.d/astra-sm ]; then /etc/init.d/astra-sm stop >/dev/null 2>&1; fi; "
             "killall -9 astra-sm >/dev/null 2>&1; "
@@ -183,6 +253,8 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
 
     def _astraStoppedCopyFiles(self, retval):
         # Even if stop returns non-zero, we still try to proceed (killall may have succeeded)
+        self._current_install_step = "Copying configuration files"
+        
         try:
             self["status"].setText("Copying configuration files...")
             self["info"].setText("Copying configuration files...")
@@ -212,17 +284,27 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
             shutil.copy(softcam_path, "/etc/tuxbox/config/oscam-emu/softcam.key")
 
             # Start Astra-SM again
+            self._current_install_step = "Starting Astra-SM"
             self["info"].setText("Starting Astra-SM...")
+            
+            # Pokreni timer za monitoring
+            self._startInstallTimer("astra_start")
+            
             start_cmd = "if [ -x /etc/init.d/astra-sm ]; then /etc/init.d/astra-sm start >/dev/null 2>&1; fi;"
             self.runCommandAsync(start_cmd, done_cb=self._astraRestartedFinish, status_text="Starting Astra-SM...")
 
         except Exception as e:
+            self._is_installing = False
             self["status"].setText("Error: %s" % str(e))
             # Try to start Astra-SM anyway
             start_cmd = "if [ -x /etc/init.d/astra-sm ]; then /etc/init.d/astra-sm start >/dev/null 2>&1; fi;"
             self.runCommandAsync(start_cmd, status_text="Starting Astra-SM...")
 
     def _astraRestartedFinish(self, retval):
+        # Instalacija završena uspješno
+        self._is_installing = False
+        self._retry_count = 0
+        
         # Installation done; suggest BLUE for settings list
         self["status"].setText("Install done. You can now press BLUE for latest channel list.")
         self["info"].setText(
