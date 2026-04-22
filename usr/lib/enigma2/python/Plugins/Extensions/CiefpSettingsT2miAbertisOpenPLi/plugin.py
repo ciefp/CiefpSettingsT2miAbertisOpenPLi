@@ -13,7 +13,7 @@ from Components.Label import Label
 from Components.Button import Button
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "1.8"  # Verzija povećana zbog dodavanja retry logike
+PLUGIN_VERSION = "1.9"  # Verzija povećana zbog dodavanja retry logike
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
@@ -203,7 +203,7 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
         self._is_installing = True
         self._current_install_step = "Checking system compatibility"
         self._retry_count = 0
-        
+
         self["info"].setText("Checking system compatibility...")
         system_info = platform.machine()
         is_py3 = (platform.python_version_tuple()[0] == '3')
@@ -220,18 +220,49 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
             self["status"].setText("Unsupported architecture: " + system_info)
             return
 
-        self._current_install_step = "Installing Astra-SM"
-        self["info"].setText("Installing Astra-SM (opkg)...")
-        
+        # PROVERA DA LI JE ASTRA-SM VEĆ INSTALIRAN
+        self._current_install_step = "Checking if Astra-SM is already installed"
+        self["info"].setText("Checking if Astra-SM is already installed...")
+
         # Pokreni timer za monitoring
-        self._startInstallTimer("astra_install")
-        
+        self._startInstallTimer("astra_check")
+
+        # Komanda za proveru da li je astra-sm instaliran
+        check_cmd = "opkg list-installed | grep -q 'astra-sm'"
         self.runCommandAsync(
-            "opkg update && opkg install astra-sm",
-            done_cb=self._astraInstallDone,
-            status_text="Installing Astra-SM..."
+            check_cmd,
+            done_cb=self._astraCheckDone,
+            status_text="Checking Astra-SM installation..."
         )
 
+    def _astraCheckDone(self, retval):
+        # retval == 0 znači da je astra-sm instaliran
+        if retval == 0:
+            # Astra-SM je već instaliran, preskoči instalaciju
+            self["status"].setText("Astra-SM already installed, skipping...")
+            self._current_install_step = "Stopping Astra-SM"
+            self["info"].setText("Stopping Astra-SM to copy files safely...")
+
+            self._startInstallTimer("astra_stop")
+
+            stop_cmd = (
+                "if [ -x /etc/init.d/astra-sm ]; then /etc/init.d/astra-sm stop >/dev/null 2>&1; fi; "
+                "killall -9 astra-sm >/dev/null 2>&1; "
+            )
+            self.runCommandAsync(stop_cmd, done_cb=self._astraStoppedCopyFiles, status_text="Stopping Astra-SM...")
+        else:
+            # Astra-SM nije instaliran, idi na instalaciju
+            self._current_install_step = "Installing Astra-SM"
+            self["info"].setText("Installing Astra-SM (opkg)...")
+
+            self._startInstallTimer("astra_install")
+
+            self.runCommandAsync(
+                "opkg update && opkg install astra-sm",
+                done_cb=self._astraInstallDone,
+                status_text="Installing Astra-SM..."
+            )
+            
     def _astraInstallDone(self, retval):
         if retval != 0:
             self._is_installing = False
