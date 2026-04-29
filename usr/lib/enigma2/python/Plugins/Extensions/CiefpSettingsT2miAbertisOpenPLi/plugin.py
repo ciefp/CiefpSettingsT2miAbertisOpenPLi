@@ -13,7 +13,7 @@ from Components.Label import Label
 from Components.Button import Button
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "1.9"  # Verzija povećana zbog dodavanja retry logike
+PLUGIN_VERSION = "2.0"  # Verzija povećana zbog dodavanja retry logike
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
