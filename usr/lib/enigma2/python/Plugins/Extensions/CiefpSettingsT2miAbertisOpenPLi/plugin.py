@@ -13,7 +13,7 @@ from Components.Label import Label
 from Components.Button import Button
 from Plugins.Plugin import PluginDescriptor
 
-PLUGIN_VERSION = "2.1"  # Verzija povećana zbog dodavanja retry logike
+PLUGIN_VERSION = "2.2"  # Verzija povećana zbog dodavanja retry logike
 PLUGIN_NAME = "CiefpSettingsT2miAbertisOpenPLi"
 PLUGIN_PATH = "/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi"
 DATA_PATH = os.path.join(PLUGIN_PATH, "data")
@@ -33,17 +33,45 @@ MAX_RETRY_ATTEMPTS = 2   # Maksimalan broj pokušaja (1 originalni + 1 retry)
 
 class CiefpSettingsT2miAbertisOpenPLi(Screen):
     skin = """
-    <screen name="CiefpSettingsT2miAbertisOpenPLi" position="center,center" size="1600,800" title="..:: CiefpSettings T2mi Abertis OpenPLi Installer ::..(v{version})">
-        <widget name="info" position="10,10" size="780,650" font="Regular;24" valign="center" halign="left" />
+    <screen name="CiefpSettingsT2miAbertisOpenPLi" position="center,center" size="1920,1080"  backgroundColor="#011a2e" >
+    
+        <!-- NASLOV SA ZELENOM POZADINOM -->
+        <widget name="plugin_title" position="0,20" size="1920,60" font="Bold;42" 
+            halign="center" valign="center" backgroundColor="#012e01" foregroundColor="#FFFFFF" 
+            transparent="0" zPosition="2" title="CiefpSettings T2mi Abertis Installer (v{version})" />
+            
+        <widget name="info" position="50,100" size="780,650" font="Regular;24" valign="center" halign="left" backgroundColor="#011a2e" />
+        <ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi/background.png" position="900,100" size="1000,650" alphatest="on" />
 
-        <ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/CiefpSettingsT2miAbertisOpenPLi/background.png" position="790,10" size="800,650" alphatest="on" />
+        <!-- STATUS -->
+        <widget name="status" position="20,670" size="1880,290" font="Bold;28" 
+            valign="center" halign="center" foregroundColor="#d5fa02" transparent="1" zPosition="2" />
 
-        <widget name="status" position="10,670" size="1580,50" font="Bold;24" valign="center" halign="center" backgroundColor="#cccccc" foregroundColor="#000000" />
+        <!-- SEPARATORI -->
+        <widget name="separator1" position="0,90" size="1920,3" backgroundColor="#d5fa02" zPosition="1" />
+        <widget name="separator2" position="0,770" size="1920,3" backgroundColor="#d5fa02" zPosition="1" />
+        <widget name="separator3" position="0,850" size="1920,3" backgroundColor="#d5fa02" zPosition="1" />
 
-        <widget name="key_red" position="10,730" size="370,60" font="Bold;26" halign="center" backgroundColor="#9F1313" foregroundColor="#000000" />
-        <widget name="key_green" position="410,730" size="370,60" font="Bold;26" halign="center" backgroundColor="#1F771F" foregroundColor="#000000" />
-        <widget name="key_yellow" position="810,730" size="370,60" font="Bold;26" halign="center" backgroundColor="#D6A200" foregroundColor="#000000" />
-        <widget name="key_blue" position="1210,730" size="380,60" font="Bold;26" halign="center" backgroundColor="#1E5AA8" foregroundColor="#000000" />
+        <!-- BUTTONI -->
+        <widget name="key_red" position="20,870" size="455,60" font="Bold;28"
+            halign="center" valign="center" foregroundColor="#FFFFFF" backgroundColor="#a00000" zPosition="2" />
+        <ePixmap pixmap="skin_default/buttons/red.png" position="20,870" size="455,60" alphatest="blend" zPosition="1" />
+
+        <widget name="key_green" position="490,870" size="455,60" font="Bold;28"
+            halign="center" valign="center" foregroundColor="#FFFFFF" backgroundColor="#00a000" zPosition="2" />
+        <ePixmap pixmap="skin_default/buttons/green.png" position="490,870" size="455,60" alphatest="blend" zPosition="1" />
+
+        <widget name="key_yellow" position="960,870" size="455,60" font="Bold;28"
+            halign="center" valign="center" foregroundColor="#FFFFFF" backgroundColor="#a09d00" zPosition="2" />
+        <ePixmap pixmap="skin_default/buttons/yellow.png" position="960,870" size="455,60" alphatest="blend" zPosition="1" />
+
+        <widget name="key_blue" position="1430,870" size="470,60" font="Bold;26"
+            halign="center" valign="center" foregroundColor="#FFFFFF" backgroundColor="#0000a0" zPosition="2" />
+        <ePixmap pixmap="skin_default/buttons/blue.png" position="1430,870" size="470,60" alphatest="blend" zPosition="1" />
+        
+        <!-- STATUSNA TRAKA -->
+        <widget name="statusbar" position="0,950" size="1920,50" font="Regular;24" 
+            halign="center" valign="center" backgroundColor="#012e01" foregroundColor="#d5fa02" zPosition="2" />
     </screen>
     """.format(version=PLUGIN_VERSION)
 
@@ -66,12 +94,19 @@ class CiefpSettingsT2miAbertisOpenPLi(Screen):
         self.showPrompt()
 
     def setupUI(self):
+        self["plugin_title"] = Label("..:: CiefpSettings T2mi Abertis OpenPLi Installer ::..")
         self["info"] = Label("Initializing plugin...")
         self["status"] = Label("")
+        self["statusbar"] = Label(f"v{PLUGIN_VERSION} | Press GREEN to install | BLUE for Motor Settings")
         self["key_red"] = Button("Exit")
         self["key_green"] = Button("Install")
         self["key_yellow"] = Button("Update")
         self["key_blue"] = Button("OpenPLi Settings")
+
+        # Separatori
+        self["separator1"] = Label()
+        self["separator2"] = Label()
+        self["separator3"] = Label()
 
         self["actions"] = ActionMap(["ColorActions", "SetupActions"], {
             "red": self.exitPlugin,
